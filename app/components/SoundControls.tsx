@@ -48,7 +48,10 @@ export const SoundControls = forwardRef<
   ref,
 ) {
   const submitAudioRef = useRef<HTMLAudioElement | null>(null);
-  const otohimeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const otohimeContextRef = useRef<AudioContext | null>(null);
+  const otohimeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const otohimeAbortRef = useRef<AbortController | null>(null);
+  const otohimeOperationRef = useRef(0);
   const [otohimePlaying, setOtohimePlaying] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -73,36 +76,99 @@ export const SoundControls = forwardRef<
     }
   }, [disabled, reportPlaybackError, submitSoundSrc]);
 
-  const stopAll = useCallback(() => {
-    [submitAudioRef.current, otohimeAudioRef.current].forEach((audio) => {
-      if (!audio) return;
-      audio.pause();
-      audio.currentTime = 0;
-    });
+  const stopOtohime = useCallback(() => {
+    otohimeOperationRef.current += 1;
+    otohimeAbortRef.current?.abort();
+    otohimeAbortRef.current = null;
+
+    const source = otohimeSourceRef.current;
+    otohimeSourceRef.current = null;
+    if (source) {
+      source.onended = null;
+      try {
+        source.stop();
+      } catch {
+        // The source may already have ended.
+      }
+      source.disconnect();
+    }
+
+    const context = otohimeContextRef.current;
+    otohimeContextRef.current = null;
+    if (context && context.state !== "closed") void context.close();
     setOtohimePlaying(false);
   }, []);
 
-  const toggleOtohime = useCallback(async () => {
-    const audio = otohimeAudioRef.current;
-    if (!audio || !otohimeSoundSrc || disabled) return;
+  const stopAll = useCallback(() => {
+    const submitAudio = submitAudioRef.current;
+    if (submitAudio) {
+      submitAudio.pause();
+      submitAudio.currentTime = 0;
+    }
+    stopOtohime();
+  }, [stopOtohime]);
 
-    if (!audio.paused) {
-      audio.pause();
-      audio.currentTime = 0;
-      setOtohimePlaying(false);
+  const toggleOtohime = useCallback(async () => {
+    if (!otohimeSoundSrc || disabled) return;
+    if (otohimeContextRef.current) {
+      stopOtohime();
       return;
     }
 
+    const AudioContextClass = getAudioContextClass();
+    if (!AudioContextClass) {
+      reportPlaybackError();
+      return;
+    }
+
+    const operation = otohimeOperationRef.current + 1;
+    otohimeOperationRef.current = operation;
+    const abortController = new AbortController();
+    otohimeAbortRef.current = abortController;
+    const context = new AudioContextClass();
+    otohimeContextRef.current = context;
+
     try {
       setMessage("");
-      audio.currentTime = 0;
-      await audio.play();
+      await context.resume();
+      const response = await fetch(otohimeSoundSrc, {
+        signal: abortController.signal,
+      });
+      if (!response.ok) throw new Error("audio unavailable");
+      const buffer = await context.decodeAudioData(await response.arrayBuffer());
+      if (operation !== otohimeOperationRef.current) return;
+
+      otohimeAbortRef.current = null;
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.loop = otohimeLoop;
+      source.connect(context.destination);
+      source.onended = () => {
+        if (otohimeSourceRef.current !== source) return;
+        otohimeSourceRef.current = null;
+        otohimeContextRef.current = null;
+        if (context.state !== "closed") void context.close();
+        setOtohimePlaying(false);
+      };
+      otohimeSourceRef.current = source;
+      source.start();
       setOtohimePlaying(true);
-    } catch {
+    } catch (error) {
+      if (operation !== otohimeOperationRef.current) return;
+      otohimeAbortRef.current = null;
+      otohimeContextRef.current = null;
+      if (context.state !== "closed") void context.close();
       setOtohimePlaying(false);
+      if (error instanceof DOMException && error.name === "AbortError") return;
       reportPlaybackError();
     }
-  }, [disabled, otohimeSoundSrc, reportPlaybackError]);
+  }, [
+    disabled,
+    otohimeLoop,
+    otohimeSoundSrc,
+    reportPlaybackError,
+    stopOtohime,
+  ]);
 
   useImperativeHandle(
     ref,
@@ -113,6 +179,18 @@ export const SoundControls = forwardRef<
   useEffect(() => {
     if (disabled) stopAll();
   }, [disabled, stopAll]);
+
+  useEffect(() => {
+    const stopWhenHidden = () => {
+      if (document.hidden) stopAll();
+    };
+    window.addEventListener("pagehide", stopAll);
+    document.addEventListener("visibilitychange", stopWhenHidden);
+    return () => {
+      window.removeEventListener("pagehide", stopAll);
+      document.removeEventListener("visibilitychange", stopWhenHidden);
+    };
+  }, [stopAll]);
 
   useEffect(() => stopAll, [stopAll]);
 
@@ -137,15 +215,6 @@ export const SoundControls = forwardRef<
       ) : null}
       {submitSoundSrc ? (
         <audio ref={submitAudioRef} src={submitSoundSrc} preload="auto" />
-      ) : null}
-      {otohimeSoundSrc ? (
-        <audio
-          ref={otohimeAudioRef}
-          src={otohimeSoundSrc}
-          preload="auto"
-          loop={otohimeLoop}
-          onEnded={() => setOtohimePlaying(false)}
-        />
       ) : null}
     </div>
   );
@@ -176,10 +245,7 @@ const statusStyle: CSSProperties = {
 };
 
 async function playStampSound() {
-  const AudioContextClass =
-    window.AudioContext ??
-    (window as typeof window & { webkitAudioContext?: typeof AudioContext })
-      .webkitAudioContext;
+  const AudioContextClass = getAudioContextClass();
   if (!AudioContextClass) return;
 
   const context = new AudioContextClass();
@@ -222,4 +288,12 @@ async function playStampSound() {
   body.stop(start + 0.18);
   impact.stop(start + 0.06);
   window.setTimeout(() => void context.close(), 260);
+}
+
+function getAudioContextClass() {
+  return (
+    window.AudioContext ??
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext })
+      .webkitAudioContext
+  );
 }
