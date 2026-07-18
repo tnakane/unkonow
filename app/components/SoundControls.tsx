@@ -95,7 +95,10 @@ export const SoundControls = forwardRef<
 
     const context = otohimeContextRef.current;
     otohimeContextRef.current = null;
-    if (context && context.state !== "closed") void context.close();
+    if (context && context.state !== "closed") {
+      void context.close().finally(clearOtohimeSystemSession);
+    }
+    clearOtohimeSystemSession();
     setOtohimePlaying(false);
   }, []);
 
@@ -125,6 +128,7 @@ export const SoundControls = forwardRef<
     otohimeOperationRef.current = operation;
     const abortController = new AbortController();
     otohimeAbortRef.current = abortController;
+    prepareOtohimeSystemSession();
     const context = new AudioContextClass();
     otohimeContextRef.current = context;
 
@@ -147,7 +151,10 @@ export const SoundControls = forwardRef<
         if (otohimeSourceRef.current !== source) return;
         otohimeSourceRef.current = null;
         otohimeContextRef.current = null;
-        if (context.state !== "closed") void context.close();
+        if (context.state !== "closed") {
+          void context.close().finally(clearOtohimeSystemSession);
+        }
+        clearOtohimeSystemSession();
         setOtohimePlaying(false);
       };
       otohimeSourceRef.current = source;
@@ -157,7 +164,10 @@ export const SoundControls = forwardRef<
       if (operation !== otohimeOperationRef.current) return;
       otohimeAbortRef.current = null;
       otohimeContextRef.current = null;
-      if (context.state !== "closed") void context.close();
+      if (context.state !== "closed") {
+        void context.close().finally(clearOtohimeSystemSession);
+      }
+      clearOtohimeSystemSession();
       setOtohimePlaying(false);
       if (error instanceof DOMException && error.name === "AbortError") return;
       reportPlaybackError();
@@ -181,6 +191,7 @@ export const SoundControls = forwardRef<
   }, [disabled, stopAll]);
 
   useEffect(() => {
+    clearOtohimeSystemSession();
     const stopWhenHidden = () => {
       if (document.hidden) stopAll();
     };
@@ -296,4 +307,73 @@ function getAudioContextClass() {
     (window as typeof window & { webkitAudioContext?: typeof AudioContext })
       .webkitAudioContext
   );
+}
+
+type OtohimeAudioSession = {
+  type: "auto" | "ambient";
+};
+
+function prepareOtohimeSystemSession() {
+  clearMediaSession();
+  const audioSession = (
+    navigator as Navigator & { audioSession?: OtohimeAudioSession }
+  ).audioSession;
+  if (!audioSession) return;
+  try {
+    audioSession.type = "ambient";
+  } catch {
+    // Audio Session API is experimental and may be only partially available.
+  }
+}
+
+function clearOtohimeSystemSession() {
+  clearMediaSession();
+  const audioSession = (
+    navigator as Navigator & { audioSession?: OtohimeAudioSession }
+  ).audioSession;
+  if (!audioSession) return;
+  try {
+    audioSession.type = "auto";
+  } catch {
+    // Audio Session API is experimental and may be only partially available.
+  }
+}
+
+function clearMediaSession() {
+  if (!("mediaSession" in navigator)) return;
+
+  const mediaSession = navigator.mediaSession;
+  try {
+    mediaSession.playbackState = "none";
+  } catch {
+    // Some Safari releases expose this property as read-only.
+  }
+  try {
+    mediaSession.metadata = null;
+  } catch {
+    // Some Safari releases do not allow clearing metadata explicitly.
+  }
+  try {
+    mediaSession.setPositionState();
+  } catch {
+    // Some Safari releases do not implement position-state clearing.
+  }
+
+  const actions: MediaSessionAction[] = [
+    "play",
+    "pause",
+    "stop",
+    "seekbackward",
+    "seekforward",
+    "seekto",
+    "previoustrack",
+    "nexttrack",
+  ];
+  actions.forEach((action) => {
+    try {
+      mediaSession.setActionHandler(action, null);
+    } catch {
+      // Ignore actions unsupported by this Safari version.
+    }
+  });
 }
