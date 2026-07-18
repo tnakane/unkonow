@@ -48,6 +48,30 @@ button { font: inherit; }
   gap: 18px;
 }
 
+.live-count {
+  display: flex;
+  min-height: 34px;
+  align-items: baseline;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: rgba(255,255,255,.46);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.82), 0 7px 22px rgba(39,47,43,.06);
+  -webkit-backdrop-filter: blur(18px) saturate(125%);
+  backdrop-filter: blur(18px) saturate(125%);
+}
+
+.live-count span { color: var(--muted); font-size: 11px; font-weight: 600; }
+.live-count strong { font-size: 15px; letter-spacing: .02em; }
+.live-count small {
+  margin-left: 3px;
+  padding-left: 9px;
+  border-left: 1px solid rgba(74,85,80,.16);
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .action-stage {
   position: relative;
   display: grid;

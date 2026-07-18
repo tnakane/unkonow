@@ -22,6 +22,8 @@ test("production build contains the unko now experience", async () => {
   assert.match(clientBundle, /うんこなう/);
   assert.match(clientBundle, /花まる/);
   assert.match(clientBundle, /おと姫/);
+  assert.match(clientBundle, /日本でいま/);
+  assert.match(clientBundle, /カーボベルデ/);
   assert.match(clientBundle, /playStampSound|AudioContext/);
 });
 

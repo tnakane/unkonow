@@ -2,9 +2,28 @@ const RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEMO_COUNTRIES = new Set([
   "アイスランド",
   "ウルグアイ",
+  "エストニア",
+  "ナミビア",
+  "サモア",
+  "ブータン",
+  "ジョージア",
+  "ルワンダ",
+  "スロベニア",
+  "モンゴル",
+  "コスタリカ",
+  "マルタ",
+  "フィジー",
+  "リトアニア",
+  "ボツワナ",
+  "ラオス",
+  "スリナム",
+  "カーボベルデ",
   "ネパール",
   "フィンランド",
   "ニュージーランド",
+  "アルバニア",
+  "ベリーズ",
+  "モルドバ",
 ]);
 
 const narrationState = globalThis as typeof globalThis & {

@@ -35,31 +35,30 @@ type NarrationResponse = {
 };
 
 const WORLD_PULSES: PulseCard[] = [
-  {
-    flag: "🇮🇸",
-    country: "アイスランド",
-    message: "朝の静かな一件です。",
-  },
-  {
-    flag: "🇺🇾",
-    country: "ウルグアイ",
-    message: "夜更けに、ひとつ。",
-  },
-  {
-    flag: "🇳🇵",
-    country: "ネパール",
-    message: "山の国から、ひとつ。",
-  },
-  {
-    flag: "🇫🇮",
-    country: "フィンランド",
-    message: "北のほうで、いま。",
-  },
-  {
-    flag: "🇳🇿",
-    country: "ニュージーランド",
-    message: "海の向こうから、ひとつ。",
-  },
+  { flag: "🇮🇸", country: "アイスランド", message: "北の島から、そっとひとつ。" },
+  { flag: "🇺🇾", country: "ウルグアイ", message: "地球の向こうから、ひとつ。" },
+  { flag: "🇪🇪", country: "エストニア", message: "バルト海のほとりから、いま。" },
+  { flag: "🇳🇦", country: "ナミビア", message: "遠い空の下から、ひとつ。" },
+  { flag: "🇼🇸", country: "サモア", message: "太平洋の島から、今日のひとつ。" },
+  { flag: "🇧🇹", country: "ブータン", message: "山あいの国から、ひとつ。" },
+  { flag: "🇬🇪", country: "ジョージア", message: "黒海の東から、うんこなう。" },
+  { flag: "🇷🇼", country: "ルワンダ", message: "赤道の少し南から、いま。" },
+  { flag: "🇸🇮", country: "スロベニア", message: "小さな国から、大切なひとつ。" },
+  { flag: "🇲🇳", country: "モンゴル", message: "広い空の下から、ひとつ。" },
+  { flag: "🇨🇷", country: "コスタリカ", message: "中米から、静かな知らせです。" },
+  { flag: "🇲🇹", country: "マルタ", message: "地中海の島から、ひとつ。" },
+  { flag: "🇫🇯", country: "フィジー", message: "南太平洋から、うんこなう。" },
+  { flag: "🇱🇹", country: "リトアニア", message: "北東ヨーロッパから、いま。" },
+  { flag: "🇧🇼", country: "ボツワナ", message: "南部アフリカから、ひとつ。" },
+  { flag: "🇱🇦", country: "ラオス", message: "メコン川の国から、そっと。" },
+  { flag: "🇸🇷", country: "スリナム", message: "南米の北から、届きました。" },
+  { flag: "🇨🇻", country: "カーボベルデ", message: "大西洋の島々から、ひとつ。" },
+  { flag: "🇳🇵", country: "ネパール", message: "山の国から、うんこなう。" },
+  { flag: "🇫🇮", country: "フィンランド", message: "北のほうで、いまひとつ。" },
+  { flag: "🇳🇿", country: "ニュージーランド", message: "海の向こうから、届きました。" },
+  { flag: "🇦🇱", country: "アルバニア", message: "アドリア海の東から、ひとつ。" },
+  { flag: "🇧🇿", country: "ベリーズ", message: "カリブ海のそばから、いま。" },
+  { flag: "🇲🇩", country: "モルドバ", message: "東ヨーロッパから、そっとひとつ。" },
 ];
 
 const JP_LIVE_CARD: PulseCard = {
@@ -81,16 +80,12 @@ function audienceUrlFromLocation() {
   return url.toString();
 }
 
-function stableEventId() {
+function createEventId() {
   if (typeof window === "undefined") return "";
-  const key = "unkonow-event-id";
-  const previous = window.sessionStorage.getItem(key);
-  if (previous) return previous;
-  const next =
+  return (
     crypto.randomUUID?.() ??
-    `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  window.sessionStorage.setItem(key, next);
-  return next;
+    `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
 }
 
 export function UnkoNowClient() {
@@ -104,10 +99,13 @@ export function UnkoNowClient() {
   const [pageUrl, setPageUrl] = useState("このページのURL");
   const [isStage, setIsStage] = useState(false);
   const latestLiveKey = useRef("");
+  const hasInitialPulse = useRef(false);
+  const pendingEventId = useRef("");
   const narratedCountries = useRef(new Set<string>());
   const pulseSequence = useRef(0);
   const pulseTimers = useRef(new Set<number>());
   const latestWorldPulse = useRef<PulseCard | null>(null);
+  const lastWorldPulse = useRef<Pick<PulseCard, "country" | "message"> | null>(null);
   const soundControls = useRef<SoundControlsHandle | null>(null);
   const roomId = useMemo(roomFromLocation, []);
 
@@ -149,10 +147,10 @@ export function UnkoNowClient() {
       const live = data.latestLiveEvent;
       const key = String(live?.id ?? live?.createdAt ?? "");
       if (key && key !== latestLiveKey.current) {
-        const hadPrevious = Boolean(latestLiveKey.current);
         latestLiveKey.current = key;
-        if (hadPrevious) showLiveArrival(count);
+        if (hasInitialPulse.current) showLiveArrival(count);
       }
+      hasInitialPulse.current = true;
 
       if (data.worldCard?.country && data.worldCard.message) {
         latestWorldPulse.current = {
@@ -183,14 +181,31 @@ export function UnkoNowClient() {
     setPageUrl(audienceUrlFromLocation());
     setIsStage(stage);
     void fetchPulse();
-    const poll = window.setInterval(() => void fetchPulse(), stage ? 900 : 2500);
+    const fastPoll = stage || window.matchMedia("(min-width: 851px)").matches;
+    const poll = window.setInterval(() => void fetchPulse(), fastPoll ? 900 : 2500);
     return () => window.clearInterval(poll);
   }, [fetchPulse]);
 
   const showWorldPulse = useCallback(async (fallback: PulseCard) => {
-    const nextCard = latestWorldPulse.current ?? fallback;
-    const id = pushFloatingPulse(nextCard);
+    const serverCard = latestWorldPulse.current;
     latestWorldPulse.current = null;
+    const offset = pulseSequence.current % WORLD_PULSES.length;
+    const candidates = [
+      serverCard,
+      fallback,
+      ...WORLD_PULSES.slice(offset),
+      ...WORLD_PULSES.slice(0, offset),
+    ].filter((card): card is PulseCard => Boolean(card));
+    const previous = lastWorldPulse.current;
+    const nextCard =
+      candidates.find(
+        (card) => card.country !== previous?.country && card.message !== previous?.message,
+      ) ?? fallback;
+    lastWorldPulse.current = {
+      country: nextCard.country,
+      message: nextCard.message,
+    };
+    const id = pushFloatingPulse(nextCard);
 
     if (!isStage || narratedCountries.current.has(nextCard.country)) return;
     narratedCountries.current.add(nextCard.country);
@@ -259,13 +274,16 @@ export function UnkoNowClient() {
     setJoined(true);
 
     try {
+      const eventId = pendingEventId.current || createEventId();
+      pendingEventId.current = eventId;
       const response = await fetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event_id: stableEventId(), room_id: roomId }),
+        body: JSON.stringify({ event_id: eventId, room_id: roomId }),
       });
       if (!response.ok) throw new Error("submit unavailable");
       const data = (await response.json()) as PulseResponse;
+      pendingEventId.current = "";
       updateFromPulse(data);
     } catch {
       setJapanNow(previousJapan);
@@ -296,14 +314,22 @@ export function UnkoNowClient() {
       </div>
 
       <section className="experience" id="top">
+        <div className="live-count" aria-live="polite">
+          <span>🇯🇵 日本でいま</span>
+          <strong>{japanNow ?? "—"}人</strong>
+          {typeof roomNow === "number" && roomNow > 0 ? (
+            <small>この会場 {roomNow}人</small>
+          ) : null}
+        </div>
+
         <div className="action-stage">
           {stampKey > 0 ? (
             <span
               className="hanamaru"
               key={stampKey}
-            aria-hidden="true"
-            onAnimationEnd={() => setStampKey(0)}
-          >
+              aria-hidden="true"
+              onAnimationEnd={() => setStampKey(0)}
+            >
               <strong>花まる</strong>
               <small>よくできました</small>
             </span>
