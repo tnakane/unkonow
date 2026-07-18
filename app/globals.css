@@ -64,14 +64,6 @@ button { font: inherit; }
 
 .live-count span { color: var(--muted); font-size: 11px; font-weight: 600; }
 .live-count strong { font-size: 15px; letter-spacing: .02em; }
-.live-count small {
-  margin-left: 3px;
-  padding-left: 9px;
-  border-left: 1px solid rgba(74,85,80,.16);
-  color: var(--muted);
-  font-size: 10px;
-}
-
 .action-stage {
   position: relative;
   display: grid;

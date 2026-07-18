@@ -19,7 +19,6 @@ type FloatingPulse = PulseCard & {
 
 type PulseResponse = {
   japanNow?: number;
-  roomNow?: number;
   count?: number;
   worldCard?: Partial<PulseCard> | null;
   latestLiveEvent?: {
@@ -90,7 +89,6 @@ function createEventId() {
 
 export function UnkoNowClient() {
   const [japanNow, setJapanNow] = useState<number | null>(null);
-  const [roomNow, setRoomNow] = useState<number | null>(null);
   const [floatingPulses, setFloatingPulses] = useState<FloatingPulse[]>([]);
   const [joined, setJoined] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -142,7 +140,6 @@ export function UnkoNowClient() {
     (data: PulseResponse) => {
       const count = data.japanNow ?? data.count;
       if (typeof count === "number") setJapanNow(count);
-      if (typeof data.roomNow === "number") setRoomNow(data.roomNow);
 
       const live = data.latestLiveEvent;
       const key = String(live?.id ?? live?.createdAt ?? "");
@@ -268,9 +265,7 @@ export function UnkoNowClient() {
     setSubmitting(true);
 
     const previousJapan = japanNow;
-    const previousRoom = roomNow;
     setJapanNow((value) => (value ?? 0) + 1);
-    setRoomNow((value) => (value ?? 0) + 1);
     setJoined(true);
 
     try {
@@ -287,7 +282,6 @@ export function UnkoNowClient() {
       updateFromPulse(data);
     } catch {
       setJapanNow(previousJapan);
-      setRoomNow(previousRoom);
       setJoined(false);
     } finally {
       setSubmitting(false);
@@ -317,9 +311,6 @@ export function UnkoNowClient() {
         <div className="live-count" aria-live="polite">
           <span>🇯🇵 日本でいま</span>
           <strong>{japanNow ?? "—"}人</strong>
-          {typeof roomNow === "number" && roomNow > 0 ? (
-            <small>この会場 {roomNow}人</small>
-          ) : null}
         </div>
 
         <div className="action-stage">
@@ -351,7 +342,6 @@ export function UnkoNowClient() {
             buttonClassName="sub-action integrated-button"
             activeButtonClassName="is-active"
             label="つらいので話す"
-            stopLabel="話すのをやめる"
             onStateChange={(state) => {
               setVoiceState(state);
               if (state !== "idle" && state !== "disabled" && state !== "error") {
@@ -370,11 +360,11 @@ export function UnkoNowClient() {
           />
         </div>
 
-        <div className={`voice-note ${voiceState === "speaking" || voiceState === "listening" ? "is-open" : ""}`} aria-hidden={voiceState !== "speaking" && voiceState !== "listening"}>
+        <div className={`voice-note ${voiceState === "speaking" ? "is-open" : ""}`} aria-hidden={voiceState !== "speaking"}>
           <span className="voice-orb" aria-hidden="true" />
           <div>
-            <strong>{voiceState === "speaking" ? "大丈夫。ここにいます。" : "話して大丈夫です。"}</strong>
-            <p>会話はこのアプリに保存しません。</p>
+            <strong>どうしたの、話聞くよ</strong>
+            <p>固定音声です。マイクは使いません。</p>
           </div>
         </div>
       </section>
