@@ -58,3 +58,11 @@ npm test
 - `POST /api/narrate`: 発表画面用の短い世界実況を生成
 
 本番では `.openai/hosting.json` の `DB` バインディングをSitesが注入します。
+
+## Product brief
+
+企画背景、差別化、プライバシー原則、デモ方針は [`docs/product-brief.ja.md`](docs/product-brief.ja.md) にまとめています。
+
+## License
+
+[MIT License](LICENSE)
